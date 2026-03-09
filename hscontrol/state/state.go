@@ -27,6 +27,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
+	"tailscale.com/net/tsaddr"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	"tailscale.com/types/views"
@@ -75,6 +76,15 @@ var ErrMultipleIPv6Addresses = errors.New("multiple IPv6 addresses provided")
 
 // ErrIPAddressInUse is returned when an IP address is already in use by another node.
 var ErrIPAddressInUse = errors.New("IP address already in use")
+
+// ErrIPNotInCGNATRange is returned when an IPv4 address is not in the CGNAT range.
+var ErrIPNotInCGNATRange = errors.New("IPv4 address not in CGNAT range (100.64.0.0/10)")
+
+// ErrIPInChromeOSVMRange is returned when an IPv4 address is in the ChromeOS VM range.
+var ErrIPInChromeOSVMRange = errors.New("IPv4 address in ChromeOS VM range (100.115.92.0/23)")
+
+// ErrIPNotInULARange is returned when an IPv6 address is not in the Tailscale ULA range.
+var ErrIPNotInULARange = errors.New("IPv6 address not in Tailscale ULA range (fd7a:115c:a1e0::/48)")
 
 // sshCheckPair identifies a (source, destination) node pair for
 // SSH check auth tracking.
@@ -864,10 +874,22 @@ func (s *State) SetNodeIPs(nodeID types.NodeID, ips []string) (types.NodeView, c
 				return types.NodeView{}, change.Change{}, ErrMultipleIPv4Addresses
 			}
 
+			if !tsaddr.CGNATRange().Contains(ip) {
+				return types.NodeView{}, change.Change{}, ErrIPNotInCGNATRange
+			}
+
+			if tsaddr.ChromeOSVMRange().Contains(ip) {
+				return types.NodeView{}, change.Change{}, ErrIPInChromeOSVMRange
+			}
+
 			newV4 = &ip
 		} else if ip.Is6() {
 			if newV6 != nil {
 				return types.NodeView{}, change.Change{}, ErrMultipleIPv6Addresses
+			}
+
+			if !tsaddr.TailscaleULARange().Contains(ip) {
+				return types.NodeView{}, change.Change{}, ErrIPNotInULARange
 			}
 
 			newV6 = &ip
