@@ -913,6 +913,7 @@ func (s *State) SetNodeIPs(nodeID types.NodeID, ips []string) (types.NodeView, c
 	if newV4 != nil {
 		logEvent = logEvent.Str("new_ipv4", newV4.String())
 	}
+
 	if newV6 != nil {
 		logEvent = logEvent.Str("new_ipv6", newV6.String())
 	}

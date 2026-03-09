@@ -54,6 +54,12 @@ func init() {
 	approveRoutesCmd.Flags().StringSliceP("routes", "r", []string{}, `List of routes that will be approved (comma-separated, e.g. "10.0.0.0/8,192.168.0.0/24" or empty string to remove all approved routes)`)
 	nodeCmd.AddCommand(approveRoutesCmd)
 
+	setNodeIPCmd.Flags().Uint64P("identifier", "i", 0, "Node identifier (ID)")
+	mustMarkRequired(setNodeIPCmd, "identifier")
+	setNodeIPCmd.Flags().StringSliceP("ips", "a", []string{}, "List of IP addresses to set")
+	mustMarkRequired(setNodeIPCmd, "ips")
+	nodeCmd.AddCommand(setNodeIPCmd)
+
 	nodeCmd.AddCommand(backfillNodeIPsCmd)
 }
 
@@ -505,5 +511,27 @@ var approveRoutesCmd = &cobra.Command{
 		}
 
 		return printOutput(cmd, resp.GetNode(), "Node updated")
+	}),
+}
+
+var setNodeIPCmd = &cobra.Command{
+	Use:   "set-ip",
+	Short: "Set the IP addresses of a node",
+	Long:  "Set the IP addresses of a node. Existing IPs are preserved if not overwritten by a provided IP of the same family (IPv4/IPv6).",
+	RunE: grpcRunE(func(ctx context.Context, client v1.HeadscaleServiceClient, cmd *cobra.Command, args []string) error {
+		identifier, _ := cmd.Flags().GetUint64("identifier")
+		ips, _ := cmd.Flags().GetStringSlice("ips")
+
+		request := &v1.SetNodeIPRequest{
+			NodeId:      identifier,
+			IpAddresses: ips,
+		}
+
+		response, err := client.SetNodeIP(ctx, request)
+		if err != nil {
+			return fmt.Errorf("setting node IP: %w", err)
+		}
+
+		return printOutput(cmd, response.GetNode(), "Node IP updated")
 	}),
 }
